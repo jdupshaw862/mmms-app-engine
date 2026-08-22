@@ -5,7 +5,8 @@
   "compatibility_date": "2026-08-22",
   "r2_buckets": [
     {
-      "binding": "FILES"
+      "binding": "FILES",
+      "bucket_name": "mmms-app-engine-files"
     }
   ],
   "vars": {
