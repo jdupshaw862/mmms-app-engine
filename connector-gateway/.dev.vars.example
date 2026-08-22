@@ -1,0 +1,10 @@
+GATEWAY_API_KEY=replace-with-a-long-random-value
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
+AZURE_OPENAI_API_KEY=replace-with-your-azure-key
+RESEND_API_KEY=replace-with-your-resend-key
+EMAIL_FROM=Your App <noreply@your-domain.com>
+WHATSAPP_ACCESS_TOKEN=replace-with-your-meta-token
+WHATSAPP_PHONE_NUMBER_ID=replace-with-your-phone-number-id
+TELEGRAM_BOT_TOKEN=replace-with-your-telegram-bot-token
+AGENT_WEBHOOK_URL=https://your-app.example.com/api/agent/messages
+AGENT_WEBHOOK_SECRET=replace-with-a-long-random-value

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+connector-gateway/.dev.vars
+connector-gateway/.wrangler/
+.dev.vars
+.wrangler/

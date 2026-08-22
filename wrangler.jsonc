@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "mmms-connector-gateway",
+  "main": "connector-gateway/src/index.ts",
+  "compatibility_date": "2026-08-22",
+  "r2_buckets": [
+    {
+      "binding": "FILES"
+    }
+  ],
+  "vars": {
+    "AZURE_OPENAI_TEXT_MODEL": "gpt-4o-mini",
+    "AZURE_OPENAI_IMAGE_MODEL": "gpt-image-1",
+    "AZURE_OPENAI_SPEECH_MODEL": "tts-1",
+    "AZURE_OPENAI_VIDEO_MODEL": "sora",
+    "WHATSAPP_GRAPH_API_VERSION": "v23.0"
+  }
+}
