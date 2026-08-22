@@ -3,7 +3,10 @@ interface Env {
   GATEWAY_API_KEY: string;
   AZURE_OPENAI_ENDPOINT: string;
   AZURE_OPENAI_API_KEY: string;
+  AZURE_OPENAI_MEDIA_ENDPOINT: string;
+  AZURE_OPENAI_MEDIA_API_KEY: string;
   AZURE_OPENAI_TEXT_MODEL: string;
+  AZURE_OPENAI_EXTRACTION_MODEL: string;
   AZURE_OPENAI_IMAGE_MODEL: string;
   AZURE_OPENAI_SPEECH_MODEL: string;
   AZURE_OPENAI_VIDEO_MODEL: string;
@@ -34,7 +37,7 @@ export default {
       const url = new URL(request.url);
 
       if (request.method === 'GET' && url.pathname.startsWith('/files/')) {
-        return getFile(url.pathname.slice('/files/'.length), env);
+        return await getFile(url.pathname.slice('/files/'.length), env);
       }
 
       authorize(request, env);
@@ -43,7 +46,7 @@ export default {
         request.method === 'GET' &&
         url.pathname.startsWith('/videos/status/')
       ) {
-        return getVideoStatus(
+        return await getVideoStatus(
           url.pathname.slice('/videos/status/'.length),
           request.url,
           env,
@@ -57,27 +60,27 @@ export default {
       const body = await readJson(request);
       switch (url.pathname) {
         case '/email/send':
-          return sendEmail(body, env);
+          return await sendEmail(body, env);
         case '/files/upload':
-          return uploadFile(body, request.url, env);
+          return await uploadFile(body, request.url, env);
         case '/llm/invoke':
-          return invokeLlm(body, env);
+          return await invokeLlm(body, env);
         case '/images/generate':
-          return generateImage(body, request.url, env);
+          return await generateImage(body, request.url, env);
         case '/videos/generate':
-          return generateVideo(body, env);
+          return await generateVideo(body, env);
         case '/speech/generate':
-          return generateSpeech(body, request.url, env);
+          return await generateSpeech(body, request.url, env);
         case '/files/extract':
-          return extractFileData(body, request.url, env);
+          return await extractFileData(body, request.url, env);
         case '/whatsapp/send':
-          return sendWhatsApp(body, env);
+          return await sendWhatsApp(body, env);
         case '/whatsapp/webhook':
-          return forwardAgentEvent('whatsapp', body, env);
+          return await forwardAgentEvent('whatsapp', body, env);
         case '/telegram/send':
-          return sendTelegram(body, env);
+          return await sendTelegram(body, env);
         case '/telegram/webhook':
-          return forwardAgentEvent('telegram', body, env);
+          return await forwardAgentEvent('telegram', body, env);
         default:
           throw new HttpError(404, 'Connector route not found');
       }
@@ -195,6 +198,8 @@ async function generateImage(
       prompt: requiredString(body.prompt, 'prompt'),
     },
     env,
+    'POST',
+    'media',
   );
   const result = await parseProviderJson(response, 'Azure OpenAI');
   const data = Array.isArray(result.data) ? result.data : [];
@@ -219,18 +224,33 @@ async function generateImage(
 }
 
 async function generateVideo(body: JsonObject, env: Env) {
+  const width = body.width ?? 1280;
+  const height = body.height ?? 720;
+  if (typeof width !== 'number' || typeof height !== 'number') {
+    throw new HttpError(400, 'width and height must be numbers');
+  }
+  const seconds = body.seconds ?? body.n_seconds ?? 4;
+  if (typeof seconds !== 'string' && typeof seconds !== 'number') {
+    throw new HttpError(400, 'seconds must be a string or number');
+  }
+  const payload: JsonObject = {
+    ...body,
+    model: optionalString(body.model) ?? env.AZURE_OPENAI_VIDEO_MODEL,
+    prompt: requiredString(body.prompt, 'prompt'),
+    seconds: String(seconds),
+    size: optionalString(body.size) ?? `${width}x${height}`,
+  };
+  delete payload.width;
+  delete payload.height;
+  delete payload.n_seconds;
+  delete payload.n_variants;
+
   const result = await azureJsonValue(
-    'video/generations/jobs',
-    {
-      ...body,
-      model: optionalString(body.model) ?? env.AZURE_OPENAI_VIDEO_MODEL,
-      prompt: requiredString(body.prompt, 'prompt'),
-      width: body.width ?? 1280,
-      height: body.height ?? 720,
-      n_seconds: body.n_seconds ?? 5,
-      n_variants: body.n_variants ?? 1,
-    },
+    'videos',
+    payload,
     env,
+    'POST',
+    'media',
   );
   const jobId = requiredString(result.id, 'Azure video job id');
   return json({
@@ -243,51 +263,38 @@ async function generateVideo(body: JsonObject, env: Env) {
 async function getVideoStatus(jobId: string, requestUrl: string, env: Env) {
   if (!jobId) throw new HttpError(400, 'Video job id is required');
   const result = await azureJsonValue(
-    `video/generations/jobs/${encodeURIComponent(jobId)}`,
+    `videos/${encodeURIComponent(jobId)}`,
     null,
     env,
     'GET',
+    'media',
   );
-  const generations = Array.isArray(result.generations)
-    ? result.generations
-    : [];
-  const completed =
-    result.status === 'succeeded' || result.status === 'completed';
-
-  if (!completed || generations.length === 0) {
+  if (result.status !== 'completed') {
     return json(result);
   }
 
-  const videos = await Promise.all(
-    generations.map(async (generation) => {
-      if (!isObject(generation) || typeof generation.id !== 'string') {
-        return generation;
-      }
+  const key = `${jobId}/video.mp4`;
+  if (!(await env.FILES.head(key))) {
+    const contentResponse = await azureRequest(
+      `videos/${encodeURIComponent(jobId)}/content`,
+      null,
+      env,
+      'GET',
+      'media',
+    );
+    if (!contentResponse.ok) {
+      await throwProviderError(contentResponse, 'Azure OpenAI');
+    }
+    await env.FILES.put(key, await contentResponse.arrayBuffer(), {
+      httpMetadata: {
+        contentType:
+          contentResponse.headers.get('Content-Type') ?? 'video/mp4',
+      },
+    });
+  }
 
-      const contentResponse = await azureRequest(
-        `video/generations/${encodeURIComponent(generation.id)}/content`,
-        null,
-        env,
-        'GET',
-      );
-      if (!contentResponse.ok) {
-        await throwProviderError(contentResponse, 'Azure OpenAI');
-      }
-
-      const key = `${jobId}/${generation.id}.mp4`;
-      await env.FILES.put(key, await contentResponse.arrayBuffer(), {
-        httpMetadata: {
-          contentType:
-            contentResponse.headers.get('Content-Type') ?? 'video/mp4',
-        },
-      });
-      return {
-        ...generation,
-        url: `${new URL(requestUrl).origin}/files/${encodeURIComponent(key)}`,
-      };
-    }),
-  );
-  return json({ ...result, generations: videos });
+  const url = `${new URL(requestUrl).origin}/files/${encodeURIComponent(key)}`;
+  return json({ ...result, url, generations: [{ id: jobId, url }] });
 }
 
 async function generateSpeech(
@@ -306,6 +313,8 @@ async function generateSpeech(
       response_format: format,
     },
     env,
+    'POST',
+    'media',
   );
   if (!response.ok) await throwProviderError(response, 'Azure OpenAI');
 
@@ -344,23 +353,26 @@ async function extractFileData(
     throw new HttpError(400, 'fileUrl must be an uploaded gateway file');
   }
 
-  const fileResponse = await fetch(parsedFileUrl);
-  if (!fileResponse.ok) {
+  const key = decodeURIComponent(
+    parsedFileUrl.pathname.slice('/files/'.length),
+  );
+  const object = await env.FILES.get(key);
+  if (!object) {
     throw new HttpError(400, 'Unable to download fileUrl');
   }
-  const bytes = await fileResponse.arrayBuffer();
+  const bytes = await object.arrayBuffer();
   if (bytes.byteLength > 10 * 1024 * 1024) {
     throw new HttpError(413, 'Files larger than 10 MB are not supported');
   }
 
   const contentType =
-    fileResponse.headers.get('Content-Type') ?? 'application/octet-stream';
+    object.httpMetadata?.contentType ?? 'application/octet-stream';
   const fileName =
     optionalString(body.fileName) ?? new URL(fileUrl).pathname.split('/').pop() ?? 'upload';
   const result = await azureJsonValue(
     'responses',
     {
-      model: optionalString(body.model) ?? env.AZURE_OPENAI_TEXT_MODEL,
+      model: optionalString(body.model) ?? env.AZURE_OPENAI_EXTRACTION_MODEL,
       input: [
         {
           role: 'user',
@@ -464,9 +476,10 @@ async function azureJsonValue(
   payload: JsonObject | null,
   env: Env,
   method: 'GET' | 'POST' = 'POST',
+  target: 'primary' | 'media' = 'primary',
 ) {
   return parseProviderJson(
-    await azureRequest(path, payload, env, method),
+    await azureRequest(path, payload, env, method, target),
     'Azure OpenAI',
   );
 }
@@ -476,14 +489,31 @@ async function azureRequest(
   payload: JsonObject | null,
   env: Env,
   method: 'GET' | 'POST' = 'POST',
+  target: 'primary' | 'media' = 'primary',
 ) {
-  requireEnv(env.AZURE_OPENAI_ENDPOINT, 'AZURE_OPENAI_ENDPOINT');
-  requireEnv(env.AZURE_OPENAI_API_KEY, 'AZURE_OPENAI_API_KEY');
-  const endpoint = env.AZURE_OPENAI_ENDPOINT.replace(/\/$/, '');
+  const endpointValue =
+    target === 'media'
+      ? env.AZURE_OPENAI_MEDIA_ENDPOINT
+      : env.AZURE_OPENAI_ENDPOINT;
+  const apiKey =
+    target === 'media'
+      ? env.AZURE_OPENAI_MEDIA_API_KEY
+      : env.AZURE_OPENAI_API_KEY;
+  const endpointName =
+    target === 'media'
+      ? 'AZURE_OPENAI_MEDIA_ENDPOINT'
+      : 'AZURE_OPENAI_ENDPOINT';
+  const apiKeyName =
+    target === 'media'
+      ? 'AZURE_OPENAI_MEDIA_API_KEY'
+      : 'AZURE_OPENAI_API_KEY';
+  requireEnv(endpointValue, endpointName);
+  requireEnv(apiKey, apiKeyName);
+  const endpoint = endpointValue.replace(/\/$/, '');
   return fetch(`${endpoint}/openai/v1/${path}?api-version=preview`, {
     method,
     headers: {
-      'api-key': env.AZURE_OPENAI_API_KEY,
+      'api-key': apiKey,
       'Content-Type': 'application/json',
     },
     body: payload ? JSON.stringify(payload) : undefined,

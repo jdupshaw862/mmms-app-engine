@@ -11,9 +11,10 @@
   ],
   "vars": {
     "AZURE_OPENAI_TEXT_MODEL": "model-router",
-    "AZURE_OPENAI_IMAGE_MODEL": "gpt-image-1",
-    "AZURE_OPENAI_SPEECH_MODEL": "tts-1",
-    "AZURE_OPENAI_VIDEO_MODEL": "sora",
+    "AZURE_OPENAI_EXTRACTION_MODEL": "gpt-5.4-mini",
+    "AZURE_OPENAI_IMAGE_MODEL": "gpt-image-2",
+    "AZURE_OPENAI_SPEECH_MODEL": "gpt-4o-mini-tts",
+    "AZURE_OPENAI_VIDEO_MODEL": "sora-2",
     "WHATSAPP_GRAPH_API_VERSION": "v23.0"
   }
 }

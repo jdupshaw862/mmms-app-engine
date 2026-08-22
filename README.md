@@ -43,7 +43,10 @@ WHATSAPP_VERIFY_TOKEN=replace-me
 
 The deployable gateway is in `connector-gateway/`. It uses Cloudflare R2 for
 uploaded/generated files and Azure OpenAI for LLM, image, speech, video, and
-file-extraction requests.
+file-extraction requests. `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_API_KEY`
+serve chat and extraction; the corresponding `AZURE_OPENAI_MEDIA_*` secrets
+serve image, speech, and video models when those deployments require another
+Azure region.
 
 1. Copy `connector-gateway/.dev.vars.example` to `.dev.vars` and enter your
    secrets.
