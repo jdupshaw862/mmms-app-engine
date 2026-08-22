@@ -163,13 +163,23 @@ async function getFile(encodedKey: string, env: Env) {
 }
 
 async function invokeLlm(body: JsonObject, env: Env) {
+  const input = body.input ?? body.prompt;
+  if (typeof input !== 'string' && !Array.isArray(input)) {
+    throw new HttpError(400, 'prompt or input is required');
+  }
+
   const payload: JsonObject = {
     ...body,
     model: optionalString(body.model) ?? env.AZURE_OPENAI_TEXT_MODEL,
-    input: body.input ?? requiredString(body.prompt, 'prompt'),
+    messages:
+      body.messages ??
+      (typeof input === 'string'
+        ? [{ role: 'user', content: input }]
+        : input),
   };
   delete payload.prompt;
-  return azureJson('responses', payload, env);
+  delete payload.input;
+  return azureJson('chat/completions', payload, env);
 }
 
 async function generateImage(
