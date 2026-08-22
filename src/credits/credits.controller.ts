@@ -5,6 +5,11 @@ import { CreditsService } from './credits.service';
 export class CreditsController {
   constructor(private readonly credits: CreditsService) {}
 
+  @Get()
+  getCredits() {
+    return this.credits.getCredits();
+  }
+
   @Post('add')
   add(@Body() body: { orgId: string; amount: number; reason: string }) {
     return this.credits.addCredits(body.orgId, body.amount, body.reason);

@@ -1,6 +1,8 @@
 {
   "name": "mmms-app-generator-backend",
   "version": "1.0.0",
+  "description": "MMMS App Engine Backend",
+  "main": "dist/main.js",
   "scripts": {
     "start": "nest start",
     "start:dev": "nest start --watch",

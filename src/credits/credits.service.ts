@@ -15,6 +15,10 @@ export class CreditsService {
   private balances: Record<string, number> = {};
   private logs: CreditLog[] = [];
 
+  getCredits() {
+    return { message: 'Credits endpoint working' };
+  }
+
   addCredits(orgId: string, amount: number, reason: string) {
     this.balances[orgId] = (this.balances[orgId] || 0) + amount;
     this.logs.push({

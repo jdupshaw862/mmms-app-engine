@@ -1,0 +1,12 @@
+import { Module, Global } from '@nestjs/common';
+import { EngineService } from './engine.service';
+import { EngineLoader } from './engine.loader';
+import { EngineRegistry } from './engine.registry';
+import { EngineConfig } from './engine.config';
+
+@Global()
+@Module({
+  providers: [EngineService, EngineLoader, EngineRegistry, EngineConfig],
+  exports: [EngineService, EngineLoader, EngineRegistry, EngineConfig],
+})
+export class EngineModule {}
